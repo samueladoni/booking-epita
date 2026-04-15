@@ -12,7 +12,8 @@ import jakarta.persistence.Converter;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import dev._xdbe.booking.creelhouse.infrastructure.persistence.CryptographyHelper;
-
+import static dev._xdbe.booking.creelhouse.infrastructure.persistence.CryptographyHelper.encryptData;
+import static dev._xdbe.booking.creelhouse.infrastructure.persistence.CryptographyHelper.decryptData;
 
 @Converter
 public class CreditCardConverter implements AttributeConverter<String, String> {
@@ -23,14 +24,14 @@ public class CreditCardConverter implements AttributeConverter<String, String> {
     @Override
     public String convertToDatabaseColumn(String attribute) {
         // Step 7a: Encrypt the PAN before storing it in the database
-        return attribute;
+        return encryptData(attribute);
         // Step 7a: End of PAN encryption
     }
 
     @Override
     public String convertToEntityAttribute(String dbData) {
         // Step 7b: Decrypt the PAN when reading it from the database
-        String pan = dbData;
+        String pan = decryptData(dbData);
         // Step 7b: End of PAN decryption
         String maskedPanString = panMasking(pan);
         return maskedPanString;
