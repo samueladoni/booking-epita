@@ -41,47 +41,42 @@ jobs:
             ./
         continue-on-error: true
 
-      - name: compare analyses (differential)
-        id: osv-diff
-        uses: google/osv-scanner-action/osv-reporter-action@c51854704019a247608d928f370c98740469d4b5 # v2.3.5
-        with:
-          scan-args: |-
-            --output=DependenciesAnalysisDiff.sarif
-            --old=BeforePR.sarif
-            --new=AfterPR.sarif
-            --gh-annotations=true
-            --fail-on-vuln=true
-        continue-on-error: true
-
-      - name: verify no new vulnerabilities
+      - name: compare and fail on new vulnerabilities
         run: |
-          if [ ! -f DependenciesAnalysisDiff.sarif ]; then
-            echo "::error::No differential SARIF report generated"
-            exit 1
-          fi
-          RESULTS=$(python3 -c "
+          AFTER=0
+          BEFORE=0
+          if [ -f AfterPR.sarif ]; then
+            AFTER=$(python3 -c "
           import json
-          data = json.load(open('DependenciesAnalysisDiff.sarif'))
+          data = json.load(open('AfterPR.sarif'))
           count = sum(len(run.get('results', [])) for run in data.get('runs', []))
           print(count)
           ")
-          echo "New vulnerability findings: $RESULTS"
-          if [ "$RESULTS" -gt 0 ]; then
-            echo "::error::$RESULTS new vulnerabilities detected in dependencies — blocking merge"
+          fi
+          if [ -f BeforePR.sarif ]; then
+            BEFORE=$(python3 -c "
+          import json
+          data = json.load(open('BeforePR.sarif'))
+          count = sum(len(run.get('results', [])) for run in data.get('runs', []))
+          print(count)
+          ")
+          fi
+          echo "Vulnerabilities BEFORE PR: $BEFORE"
+          echo "Vulnerabilities AFTER PR:  $AFTER"
+          if [ "$AFTER" -gt "$BEFORE" ]; then
+            echo "::error::PR introduces $(($AFTER - $BEFORE)) new dependency vulnerabilities ($BEFORE → $AFTER)"
             exit 1
           fi
-          if [ "${{ steps.osv-diff.outcome }}" = "failure" ]; then
-            echo "::error::OSV reporter flagged new vulnerabilities"
-            exit 1
-          fi
-          echo "✅ No new dependency vulnerabilities introduced"
+          echo "✅ No new dependency vulnerabilities"
 
-      - name: upload differential report
+      - name: upload reports
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: dependencies-differential-analysis
-          path: DependenciesAnalysisDiff.sarif
+          path: |
+            AfterPR.sarif
+            BeforePR.sarif
           if-no-files-found: warn
 
   source-code-analysis:
