@@ -1,0 +1,89 @@
+---
+name: security-pr
+
+on:
+  pull_request:
+
+permissions:
+  actions: read
+  security-events: write
+  contents: read
+
+jobs:
+  dependencies-analysis:
+    name: DependenciesAnalysis
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout PR head
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: run osv-scanner (after PR)
+        uses: google/osv-scanner-action/osv-scanner-action@c51854704019a247608d928f370c98740469d4b5 # v2.3.5
+        with:
+          scan-args: |-
+            --format sarif
+            --output AfterPR.sarif
+            ./
+        continue-on-error: true
+
+      - name: checkout baseline commit
+        run: |
+          git checkout ${{ github.event.pull_request.base.sha }}
+
+      - name: run osv-scanner (before PR)
+        uses: google/osv-scanner-action/osv-scanner-action@c51854704019a247608d928f370c98740469d4b5 # v2.3.5
+        with:
+          scan-args: |-
+            --format sarif
+            --output BeforePR.sarif
+            ./
+        continue-on-error: true
+
+      - name: compare analyses (differential)
+        uses: google/osv-scanner-action/osv-reporter-action@c51854704019a247608d928f370c98740469d4b5 # v2.3.5
+        with:
+          scan-args: |-
+            --output=DependenciesAnalysisDiff.sarif
+            --old=BeforePR.sarif
+            --new=AfterPR.sarif
+            --gh-annotations=true
+            --fail-on-vuln=true
+
+      - name: upload differential report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dependencies-differential-analysis
+          path: DependenciesAnalysisDiff.sarif
+          if-no-files-found: warn
+
+  source-code-analysis:
+    name: SourceCodeAnalysis
+    runs-on: ubuntu-latest
+    container:
+      image: returntocorp/semgrep@sha256:40579a2e70910d891959a4868711ba0399293949a2f1f141ddb5002d5fc7dd0f
+    steps:
+      - name: checkout PR head
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: run semgrep (differential)
+        run: |
+          semgrep scan \
+            --config .semgrep \
+            --baseline-commit ${{ github.event.pull_request.base.sha }} \
+            --sarif \
+            --output SourceCodeAnalysisDiff.sarif \
+            --error \
+            .
+
+      - name: upload differential report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: source-code-differential-analysis
+          path: SourceCodeAnalysisDiff.sarif
+          if-no-files-found: warn
