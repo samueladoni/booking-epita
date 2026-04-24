@@ -38,7 +38,7 @@ jobs:
           scan-args: |-
             --format sarif
             --output BeforePR.sarif
-            --fail-on-vulns
+            --fail-on-vulns=true
             ./
         continue-on-error: true
 
