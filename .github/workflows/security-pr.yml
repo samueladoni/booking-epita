@@ -42,6 +42,7 @@ jobs:
         continue-on-error: true
 
       - name: compare analyses (differential)
+        id: osv-diff
         uses: google/osv-scanner-action/osv-reporter-action@c51854704019a247608d928f370c98740469d4b5 # v2.3.5
         with:
           scan-args: |-
@@ -50,6 +51,30 @@ jobs:
             --new=AfterPR.sarif
             --gh-annotations=true
             --fail-on-vuln=true
+        continue-on-error: true
+
+      - name: verify no new vulnerabilities
+        run: |
+          if [ ! -f DependenciesAnalysisDiff.sarif ]; then
+            echo "::error::No differential SARIF report generated"
+            exit 1
+          fi
+          RESULTS=$(python3 -c "
+          import json
+          data = json.load(open('DependenciesAnalysisDiff.sarif'))
+          count = sum(len(run.get('results', [])) for run in data.get('runs', []))
+          print(count)
+          ")
+          echo "New vulnerability findings: $RESULTS"
+          if [ "$RESULTS" -gt 0 ]; then
+            echo "::error::$RESULTS new vulnerabilities detected in dependencies — blocking merge"
+            exit 1
+          fi
+          if [ "${{ steps.osv-diff.outcome }}" = "failure" ]; then
+            echo "::error::OSV reporter flagged new vulnerabilities"
+            exit 1
+          fi
+          echo "✅ No new dependency vulnerabilities introduced"
 
       - name: upload differential report
         if: always()
