@@ -38,36 +38,9 @@ jobs:
           scan-args: |-
             --format sarif
             --output BeforePR.sarif
+            --fail-on-vulns
             ./
         continue-on-error: true
-
-      - name: compare and fail on new vulnerabilities
-        run: |
-          AFTER=0
-          BEFORE=0
-          if [ -f AfterPR.sarif ]; then
-            AFTER=$(python3 -c "
-          import json
-          data = json.load(open('AfterPR.sarif'))
-          count = sum(len(run.get('results', [])) for run in data.get('runs', []))
-          print(count)
-          ")
-          fi
-          if [ -f BeforePR.sarif ]; then
-            BEFORE=$(python3 -c "
-          import json
-          data = json.load(open('BeforePR.sarif'))
-          count = sum(len(run.get('results', [])) for run in data.get('runs', []))
-          print(count)
-          ")
-          fi
-          echo "Vulnerabilities BEFORE PR: $BEFORE"
-          echo "Vulnerabilities AFTER PR:  $AFTER"
-          if [ "$AFTER" -gt "$BEFORE" ]; then
-            echo "::error::PR introduces $(($AFTER - $BEFORE)) new dependency vulnerabilities ($BEFORE → $AFTER)"
-            exit 1
-          fi
-          echo "✅ No new dependency vulnerabilities"
 
       - name: upload reports
         if: always()
