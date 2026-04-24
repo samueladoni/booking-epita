@@ -39,7 +39,7 @@ jobs:
             --format sarif
             --output BeforePR.sarif
             ./
-        continue-on-error: false
+        continue-on-error: true
 
       - name: compare analyses (differential)
         id: osv-diff
@@ -51,7 +51,7 @@ jobs:
             --new=AfterPR.sarif
             --gh-annotations=true
             --fail-on-vuln=true
-        continue-on-error: false
+        continue-on-error: true
 
       - name: verify no new vulnerabilities
         run: |
