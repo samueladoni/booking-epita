@@ -38,25 +38,18 @@ jobs:
           scan-args: |-
             --format sarif
             --output BeforePR.sarif
+            --fail-on-vulns=true
             ./
         continue-on-error: true
 
-      - name: compare analyses (differential)
-        uses: google/osv-scanner-action/osv-reporter-action@c51854704019a247608d928f370c98740469d4b5 # v2.3.5
-        with:
-          scan-args: |-
-            --output=DependenciesAnalysisDiff.sarif
-            --old=BeforePR.sarif
-            --new=AfterPR.sarif
-            --gh-annotations=true
-            --fail-on-vuln=true
-
-      - name: upload differential report
+      - name: upload reports
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: dependencies-differential-analysis
-          path: DependenciesAnalysisDiff.sarif
+          path: |
+            AfterPR.sarif
+            BeforePR.sarif
           if-no-files-found: warn
 
   source-code-analysis:
